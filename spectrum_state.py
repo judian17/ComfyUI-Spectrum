@@ -82,6 +82,7 @@ class SpectrumState:
         self.finished = True
         if self.verbose:
             self._report_stats()
+        self._cleanup_forecasters()
 
     def should_actual_forward(self) -> bool:
         """Decide whether this step runs the full transformer or reuses cached features."""
@@ -217,15 +218,37 @@ class SpectrumState:
 
         return result
 
+    def _cleanup_forecasters(self):
+        """Explicitly free all GPU tensors held by forecasters.
+
+        _H_buf stores the full flattened feature vector for every cache step and
+        can reach several GB (e.g. Flux at 1024x1024: ~25 MB/step, 50 steps =
+        1.25 GB per cond/uncond path).  These must be released immediately when
+        sampling completes, not later when Python GC collects the old model clone.
+        """
+        for fc in self.forecasters.values():
+            cheb = fc.cheb
+            cheb._H_buf = None
+            cheb._coef = None
+            cheb._XtX_fac = None
+            cheb._last_delta_norm = None
+            cheb.register_buffer("t_buf", torch.empty(0))
+        self.forecasters.clear()
+        self.feature_shape = None
+        try:
+            torch.cuda.empty_cache()
+        except Exception:
+            pass
+
     def reset(self):
         """Reset all per-sampling-run state."""
+        self._cleanup_forecasters()
         self.cnt = 0
         self.num_steps = 0
         self.num_consecutive_cached_steps = 0
         self.curr_ws = self.window_size
         self.actual_forward = True
         self.finished = False
-        self.forecasters.clear()
-        self.feature_shape = None
         self.txt_len = 0
         self.total_actual_forwards = 0
+        self.total_skipped = 0

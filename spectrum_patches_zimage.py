@@ -86,12 +86,24 @@ def patch_zimage(dm, state: SpectrumState) -> int:
     """Wrap every layer in dm.layers and patch patchify_and_embed.
 
     Returns the number of layers wrapped.
+
+    Guard against re-wrapping: if dm.layers are already _ZImageLayerWrapper
+    instances from a previous execute() call, restore the originals first.
+    Otherwise nested wrapping traps old SpectrumState objects (and their
+    forecasters' GPU tensors) inside stale inner wrappers.
     """
 
     n = len(dm.layers)
 
+    # If already patched from a previous run, restore the originals
+    if hasattr(dm, '_spectrum_original_layers'):
+        dm.layers = list(dm._spectrum_original_layers)
+        if hasattr(dm, '_spectrum_original_patchify'):
+            dm.patchify_and_embed = dm._spectrum_original_patchify
+
     # Save originals so we can restore them later if needed
     dm._spectrum_original_layers = list(dm.layers)
+    dm._spectrum_original_patchify = dm.patchify_and_embed
 
     # ---- patch patchify_and_embed to stash cap_size in transformer_options ----
     original_patchify = dm.patchify_and_embed

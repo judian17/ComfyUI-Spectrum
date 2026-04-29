@@ -148,7 +148,19 @@ def make_predict_noise_wrapper(state: SpectrumState):
 # ======================================================================
 
 def _patch_ernie_forward(dm, state: SpectrumState):
+    # Guard against re-patching: if we've already wrapped dm.forward in a
+    # previous execute() call, restore the real original first.  Otherwise
+    # each run creates a nested closure chain: patched_v2(patched_v1(orig)),
+    # which traps every old SpectrumState + its multi-GB _H_buf tensors alive
+    # until the model is destroyed.
+    if hasattr(dm, '_spectrum_original_forward'):
+        dm.forward = dm._spectrum_original_forward
+        if hasattr(dm, '_spectrum_handle'):
+            dm._spectrum_handle.remove()
+            del dm._spectrum_handle
+
     original_forward = dm.forward
+    dm._spectrum_original_forward = original_forward
     cache_buf = []
 
     def hook(module, inp, out):
@@ -164,6 +176,7 @@ def _patch_ernie_forward(dm, state: SpectrumState):
 
         if not hasattr(patched_forward, '_handle'):
             patched_forward._handle = dm.layers[-1].register_forward_hook(hook)
+            dm._spectrum_handle = patched_forward._handle
             if state.verbose:
                 print(f"[Spectrum] Ernie hook on {len(dm.layers)} layers")
 
