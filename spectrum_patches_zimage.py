@@ -95,9 +95,12 @@ def patch_zimage(dm, state: SpectrumState) -> int:
 
     n = len(dm.layers)
 
-    # If already patched from a previous run, restore the originals
+    # If already patched from a previous run, restore the originals.
+    # dm.layers is a nn.ModuleList; we must replace items one-by-one because
+    # assigning a plain list to it fails PyTorch's __setattr__ type check.
     if hasattr(dm, '_spectrum_original_layers'):
-        dm.layers = list(dm._spectrum_original_layers)
+        for i, orig in enumerate(dm._spectrum_original_layers):
+            dm.layers[i] = orig
         if hasattr(dm, '_spectrum_original_patchify'):
             dm.patchify_and_embed = dm._spectrum_original_patchify
 
