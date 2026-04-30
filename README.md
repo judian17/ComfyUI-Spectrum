@@ -18,7 +18,7 @@ Currently supported models:
 | Longcat Image | Flux-like | Excellent |
 | FLUX.1 | Flux-like | Excellent |
 | Qwen Image (T2I) | MMDiT | Good |
-| Z Image Turbo | Lumina2 | Slightly reduced (unique noise_refiner structure) |
+| Z Image Turbo | Lumina2 | Excellent |
 | ErnieImage | Ernie | Normal |
 | Wan2.2 | Wan | Modest speedup (dual sampling, fewer steps per round) |
 | HunyuanVideo 1.5 | Hunyuan | Normal |
